@@ -21,31 +21,24 @@ class FileSystemService {
    */
   async requestDirectoryAccess() {
     if (!this.isSupported()) {
-      throw new Error(
-        "File System Access API is not supported in this browser"
-      );
+      throw new Error('File System Access API is not supported in this browser');
     }
 
     try {
       this.directoryHandle = await window.showDirectoryPicker({
-        mode: "readwrite",
-        startIn: "documents",
+        mode: 'readwrite',
+        startIn: 'documents'
       });
 
-      // Create or get events subdirectory
-      this.eventsHandle = await this.directoryHandle.getDirectoryHandle(
-        "events",
-        {
-          create: true,
-        }
-      );
+      // Use selected folder directly for events
+      this.eventsHandle = this.directoryHandle;
 
       // Store the directory name for display
       this.directoryName = this.directoryHandle.name;
 
       return true;
     } catch (err) {
-      if (err.name === "AbortError") {
+      if (err.name === 'AbortError') {
         // User cancelled the picker
         return false;
       }
