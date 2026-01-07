@@ -58,15 +58,11 @@ export class MonthView {
   }
 
   /**
-   * Format time for display
+   * Format time for display (24h)
    */
   formatTime(timeStr) {
     if (!timeStr) return '';
-    const [hours, minutes] = timeStr.split(':');
-    const h = parseInt(hours);
-    const ampm = h >= 12 ? 'p' : 'a';
-    const h12 = h % 12 || 12;
-    return `${h12}${minutes !== '00' ? ':' + minutes : ''}${ampm}`;
+    return timeStr; // Already in HH:MM format
   }
 
   /**

@@ -52,25 +52,18 @@ export class WeekView {
   }
 
   /**
-   * Format time for display (12h format)
+   * Format time for display (24h format)
    */
   formatTime(timeStr) {
     if (!timeStr) return '';
-    const [hours, minutes] = timeStr.split(':');
-    const h = parseInt(hours);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    return `${h12}:${minutes} ${ampm}`;
+    return timeStr; // Already in HH:MM format
   }
 
   /**
-   * Format hour for time column
+   * Format hour for time column (24h)
    */
   formatHour(hour) {
-    if (hour === 0) return '12 AM';
-    if (hour === 12) return '12 PM';
-    if (hour < 12) return `${hour} AM`;
-    return `${hour - 12} PM`;
+    return `${String(hour).padStart(2, '0')}:00`;
   }
 
   /**
