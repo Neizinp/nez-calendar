@@ -45,8 +45,8 @@ class CalendarService {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
-      .substring(0, 50);
-    return `${event.startDate}-${slug}-${event.id.substring(0, 8)}.md`;
+      .substring(0, 50) || 'event';
+    return `${event.startDate}-${slug}.md`;
   }
 
   /**
