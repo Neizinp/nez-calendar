@@ -136,34 +136,61 @@ class NezCalendar {
    * Show welcome screen for first-time setup
    */
   showWelcome() {
-    this.mainContent.innerHTML = `
-      <div class="welcome-screen">
-        <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
-        </svg>
-        <h1 class="welcome-title">Welcome to Nez Calendar</h1>
-        <p class="welcome-text">
-          Your events are stored as markdown files on your computer. 
-          Choose a folder to get started - all your events will be saved there as <code>.md</code> files.
-        </p>
-        <button class="btn btn-primary select-folder-btn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    const isSupported = fileSystemService.isSupported();
+    
+    if (!isSupported) {
+      // Unsupported browser (Firefox, Safari, etc.)
+      this.mainContent.innerHTML = `
+        <div class="welcome-screen">
+          <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
           </svg>
-          Select Folder
-        </button>
-        <p class="welcome-hint">
-          Your browser will ask for permission to read and write files in the selected folder.
-        </p>
-      </div>
-    `;
+          <h1 class="welcome-title">Browser Not Supported</h1>
+          <p class="welcome-text">
+            Nez Calendar requires the File System Access API to store events as markdown files on your computer.
+          </p>
+          <p class="welcome-text">
+            Please use <strong>Chrome</strong>, <strong>Edge</strong>, or <strong>Opera</strong> to access this app.
+          </p>
+          <p class="welcome-hint">
+            Firefox and Safari do not support direct file system access.
+          </p>
+        </div>
+      `;
+    } else {
+      // Supported browser
+      this.mainContent.innerHTML = `
+        <div class="welcome-screen">
+          <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <h1 class="welcome-title">Welcome to Nez Calendar</h1>
+          <p class="welcome-text">
+            Your events are stored as markdown files on your computer. 
+            Choose a folder to get started - all your events will be saved there as <code>.md</code> files.
+          </p>
+          <button class="btn btn-primary select-folder-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            Select Folder
+          </button>
+          <p class="welcome-hint">
+            Your browser will ask for permission to read and write files in the selected folder.
+          </p>
+        </div>
+      `;
 
-    this.mainContent.querySelector('.select-folder-btn').addEventListener('click', async () => {
-      await this.selectFolder();
-    });
+      this.mainContent.querySelector('.select-folder-btn').addEventListener('click', async () => {
+        await this.selectFolder();
+      });
+    }
 
     // Update period display even when showing welcome
     this.updatePeriodDisplay();
