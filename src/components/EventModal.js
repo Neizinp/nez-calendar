@@ -80,7 +80,7 @@ export class EventModal {
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="event-start-date">Start Date</label>
-              <input type="date" id="event-start-date" class="form-input">
+              <input type="text" id="event-start-date" class="form-input mono" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}">
             </div>
             <div class="form-group time-field">
               <label class="form-label" for="event-start-time">Start Time</label>
@@ -91,7 +91,7 @@ export class EventModal {
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="event-end-date">End Date</label>
-              <input type="date" id="event-end-date" class="form-input">
+              <input type="text" id="event-end-date" class="form-input mono" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}">
             </div>
             <div class="form-group time-field">
               <label class="form-label" for="event-end-time">End Time</label>
