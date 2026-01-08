@@ -6,28 +6,11 @@
 
 import { fileSystemService } from './FileSystemService.js';
 import { getSwedishHolidays } from './SwedishHolidays.js';
+import { formatDate } from '../utils/dateUtils.js';
 
-/**
- * Event types for categorization
- */
-export const EVENT_TYPES = {
-  personal: { label: 'Personal', color: '#8b5cf6' },
-  work: { label: 'Work', color: '#3b82f6' },
-  birthday: { label: 'Birthday', color: '#ec4899' },
-  holiday: { label: 'Holiday', color: '#22c55e' },
-  other: { label: 'Other', color: '#6b7280' }
-};
-
-/**
- * Recurrence patterns
- */
-export const RECURRENCE_PATTERNS = {
-  none: 'None',
-  daily: 'Daily',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  yearly: 'Yearly'
-};
+// Re-export constants for backward compatibility
+export { EVENT_TYPES, RECURRENCE_PATTERNS } from '../constants.js';
+import { EVENT_TYPES, RECURRENCE_PATTERNS } from '../constants.js';
 
 class CalendarService {
   constructor() {
@@ -486,11 +469,7 @@ class CalendarService {
    * Format date to YYYY-MM-DD
    */
   formatDate(date) {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return formatDate(new Date(date));
   }
 
   /**

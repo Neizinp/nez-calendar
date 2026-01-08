@@ -3,67 +3,29 @@
  */
 
 import { calendarService } from "../services/CalendarService.js";
+import { BaseView } from "./BaseView.js";
+import { isToday, getWeekStart, getWeekEnd, getWeekNumber, formatDate } from "../utils/dateUtils.js";
+import { DAYS, MONTHS } from "../constants.js";
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-export class WeekView {
+export class WeekView extends BaseView {
   constructor(container, options = {}) {
-    this.container = container;
-    this.currentDate = options.currentDate || new Date();
-    this.onEventClick = options.onEventClick || (() => {});
-    this.onDateClick = options.onDateClick || (() => {});
-    this.onNavigate = options.onNavigate || (() => {});
+    super(container, options);
     this.startHour = 6;  // 6am
     this.endHour = 23;   // 11pm
   }
 
   /**
-   * Get start of week (Sunday)
+   * Get start of week (Monday)
    */
   getWeekStart() {
-    const d = new Date(this.currentDate);
-    const day = d.getDay();
-    // Monday = 0 offset, Sunday = 6 offset
-    const offset = day === 0 ? 6 : day - 1;
-    d.setDate(d.getDate() - offset);
-    d.setHours(0, 0, 0, 0);
-    return d;
+    return getWeekStart(this.currentDate);
   }
 
   /**
-   * Get end of week (Saturday)
+   * Get end of week (Sunday)
    */
   getWeekEnd() {
-    const start = this.getWeekStart();
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return end;
-  }
-
-  /**
-   * Check if a date is today
-   */
-  isToday(date) {
-    const today = new Date();
-    return (
-      date.getFullYear() === today.getFullYear() &&
-      date.getMonth() === today.getMonth() &&
-      date.getDate() === today.getDate()
-    );
+    return getWeekEnd(this.currentDate);
   }
 
   /**
@@ -81,21 +43,10 @@ export class WeekView {
     return `${String(hour).padStart(2, "0")}:00`;
   }
 
-  /**
-   * Get ISO week number
-   */
-  getWeekNumber(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-  }
-
   getPeriodDisplay() {
     const start = this.getWeekStart();
     const end = this.getWeekEnd();
-    const weekNum = this.getWeekNumber(start);
+    const weekNum = getWeekNumber(start);
 
     let dateRange;
     if (start.getMonth() === end.getMonth()) {

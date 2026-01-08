@@ -3,18 +3,8 @@
  * Supports event types and recurrence
  */
 
-import { calendarService, EVENT_TYPES, RECURRENCE_PATTERNS } from '../services/CalendarService.js';
-
-const EVENT_COLORS = [
-  '#8b5cf6', // purple
-  '#3b82f6', // blue
-  '#22c55e', // green
-  '#eab308', // yellow
-  '#ef4444', // red
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
-];
+import { calendarService } from '../services/CalendarService.js';
+import { EVENT_TYPES, RECURRENCE_PATTERNS, EVENT_COLORS } from '../constants.js';
 
 export class EventModal {
   constructor(options = {}) {

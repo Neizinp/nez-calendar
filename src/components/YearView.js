@@ -4,42 +4,25 @@
  */
 
 import { calendarService } from '../services/CalendarService.js';
+import { BaseView } from './BaseView.js';
+import { isToday, isWeekend, formatDate } from '../utils/dateUtils.js';
+import { MONTHS } from '../constants.js';
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const DAYS_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
 
 // 20 columns × 19 rows = wider cells for readable text
 const COLS_PER_ROW = 20;
 
-export class YearView {
+export class YearView extends BaseView {
   constructor(container, options = {}) {
-    this.container = container;
-    this.currentDate = options.currentDate || new Date();
+    super(container, options);
     this.onMonthClick = options.onMonthClick || (() => {});
-    this.onNavigate = options.onNavigate || (() => {});
-    this.onEventClick = options.onEventClick || (() => {});
-    this.onDateClick = options.onDateClick || (() => {});
     this.viewMode = localStorage.getItem('yearViewMode') || 'grid';
   }
 
   getYear() {
     return this.currentDate.getFullYear();
-  }
-
-  isToday(date) {
-    const today = new Date();
-    return date.getFullYear() === today.getFullYear() &&
-           date.getMonth() === today.getMonth() &&
-           date.getDate() === today.getDate();
-  }
-
-  isWeekend(date) {
-    const day = date.getDay();
-    return day === 0 || day === 6;
   }
 
   getPeriodDisplay() {
@@ -66,17 +49,6 @@ export class YearView {
     this.currentDate = new Date(this.currentDate.getFullYear() + 1, this.currentDate.getMonth(), 1);
     this.render();
     this.onNavigate(this.currentDate);
-  }
-
-  today() {
-    this.currentDate = new Date();
-    this.render();
-    this.onNavigate(this.currentDate);
-  }
-
-  setDate(date) {
-    this.currentDate = new Date(date);
-    this.render();
   }
 
   getYearEvents() {
@@ -142,11 +114,11 @@ export class YearView {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const dateStr = calendarService.formatDate(date);
-      const isToday = this.isToday(date);
+      const dayIsToday = isToday(date);
       const dayEvents = eventsByDate.get(dateStr) || [];
 
       const classes = ['mini-day'];
-      if (isToday) classes.push('today');
+      if (dayIsToday) classes.push('today');
       if (dayEvents.length > 0) classes.push('has-events');
 
       // Show up to 2 events with names
@@ -207,15 +179,15 @@ export class YearView {
   renderLinearRow(rowDays, events, isFirstRow) {
     const dayCells = rowDays.map((date, idx) => {
       const dateStr = calendarService.formatDate(date);
-      const isToday = this.isToday(date);
-      const isWeekend = this.isWeekend(date);
+      const dayIsToday = isToday(date);
+      const dayIsWeekend = isWeekend(date);
       const dayName = DAYS_SHORT[date.getDay()];
       const isFirstOfMonth = date.getDate() === 1;
       const showMonthBanner = isFirstOfMonth || (idx === 0 && isFirstRow);
 
       const classes = ['yl-day'];
-      if (isToday) classes.push('today');
-      if (isWeekend) classes.push('weekend');
+      if (dayIsToday) classes.push('today');
+      if (dayIsWeekend) classes.push('weekend');
 
       const monthBanner = showMonthBanner 
         ? `<div class="yl-month-banner">${MONTHS[date.getMonth()]}</div>` 
@@ -276,12 +248,6 @@ export class YearView {
         <div class="yl-events">${eventBars}</div>
       </div>
     `;
-  }
-
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
   }
 
   attachEventListeners() {

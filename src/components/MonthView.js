@@ -3,20 +3,13 @@
  */
 
 import { calendarService } from '../services/CalendarService.js';
+import { BaseView } from './BaseView.js';
+import { isToday } from '../utils/dateUtils.js';
+import { DAYS, MONTHS } from '../constants.js';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
-
-export class MonthView {
+export class MonthView extends BaseView {
   constructor(container, options = {}) {
-    this.container = container;
-    this.currentDate = options.currentDate || new Date();
-    this.onEventClick = options.onEventClick || (() => {});
-    this.onDateClick = options.onDateClick || (() => {});
-    this.onNavigate = options.onNavigate || (() => {});
+    super(container, options);
   }
 
   /**
@@ -40,16 +33,6 @@ export class MonthView {
     const end = new Date(start);
     end.setDate(end.getDate() + 41); // 6 weeks
     return end;
-  }
-
-  /**
-   * Check if a date is today
-   */
-  isToday(date) {
-    const today = new Date();
-    return date.getFullYear() === today.getFullYear() &&
-           date.getMonth() === today.getMonth() &&
-           date.getDate() === today.getDate();
   }
 
   /**
@@ -90,23 +73,6 @@ export class MonthView {
     this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
     this.render();
     this.onNavigate(this.currentDate);
-  }
-
-  /**
-   * Go to today
-   */
-  today() {
-    this.currentDate = new Date();
-    this.render();
-    this.onNavigate(this.currentDate);
-  }
-
-  /**
-   * Set current date
-   */
-  setDate(date) {
-    this.currentDate = new Date(date);
-    this.render();
   }
 
   /**
