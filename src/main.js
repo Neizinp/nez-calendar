@@ -4,7 +4,7 @@
 
 import './style.css';
 import { fileSystemService } from './services/FileSystemService.js';
-import { calendarService } from './services/CalendarService.js';
+import { calendarService, EVENT_TYPES } from './services/CalendarService.js';
 import { MonthView } from './components/MonthView.js';
 import { WeekView } from './components/WeekView.js';
 import { YearView } from './components/YearView.js';
@@ -17,12 +17,18 @@ class NezCalendar {
     this.view = null;
     this.modal = null;
     this.container = document.getElementById('app');
+    this.settingsOpen = false;
   }
 
   /**
    * Initialize the application
    */
   async init() {
+    // Load saved theme
+    if (localStorage.getItem('theme') === 'light') {
+      document.body.classList.add('light-mode');
+    }
+
     this.renderLayout();
     this.attachGlobalListeners();
     
@@ -32,11 +38,13 @@ class NezCalendar {
       onDelete: () => this.refreshView()
     });
 
-    // Check for existing directory access or show welcome screen
-    if (!fileSystemService.hasAccess()) {
-      this.showWelcome();
-    } else {
+    // Try to restore previous folder access
+    const restored = await fileSystemService.tryRestoreAccess();
+    
+    if (restored || fileSystemService.hasAccess()) {
       await this.loadAndRender();
+    } else {
+      this.showWelcome();
     }
   }
 
@@ -44,17 +52,33 @@ class NezCalendar {
    * Render main layout structure
    */
   renderLayout() {
+    const typePills = Object.entries(EVENT_TYPES).map(([key, val]) => {
+      const isEnabled = calendarService.isTypeEnabled(key);
+      const label = key === 'holiday' ? '🇸🇪' : val.label;
+      return `
+        <button class="filter-pill ${isEnabled ? 'active' : ''}" 
+                data-type="${key}" 
+                style="--pill-color: ${val.color}">
+          <span class="filter-pill-dot"></span>
+          ${label}
+        </button>
+      `;
+    }).join('');
+
     this.container.innerHTML = `
       <header class="header">
         <div class="header-left">
           <div class="logo">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
               <line x1="16" y1="2" x2="16" y2="6"></line>
               <line x1="8" y1="2" x2="8" y2="6"></line>
               <line x1="3" y1="10" x2="21" y2="10"></line>
             </svg>
-            <span>Nez Calendar</span>
+            <span>Calendar</span>
+          </div>
+          <div class="header-filters">
+            ${typePills}
           </div>
         </div>
         <div class="header-center">
@@ -72,6 +96,7 @@ class NezCalendar {
             </button>
           </div>
           <button class="btn btn-secondary today-btn">Today</button>
+          <button class="btn btn-secondary btn-sm year-view-toggle" style="display:none">Grid</button>
         </div>
         <div class="header-right">
           <div class="view-tabs">
@@ -79,11 +104,16 @@ class NezCalendar {
             <button class="view-tab active" data-view="month">Month</button>
             <button class="view-tab" data-view="year">Year</button>
           </div>
+          <button class="btn btn-icon theme-toggle" title="Toggle Theme">
+            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+          </button>
           <button class="btn btn-primary add-event-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 5v14M5 12h14"/>
             </svg>
-            Add Event
+            Add
           </button>
         </div>
       </header>
@@ -92,6 +122,31 @@ class NezCalendar {
 
     this.mainContent = this.container.querySelector('.main-content');
     this.periodDisplay = this.container.querySelector('.period-display');
+  }
+
+  /**
+   * Render filter bar with event type toggle pills
+   */
+  renderFilterBar() {
+    const typePills = Object.entries(EVENT_TYPES).map(([key, val]) => {
+      const isEnabled = calendarService.isTypeEnabled(key);
+      const label = key === 'holiday' ? '🇸🇪 Holidays' : val.label;
+      return `
+        <button class="filter-pill ${isEnabled ? 'active' : ''}" 
+                data-type="${key}" 
+                style="--pill-color: ${val.color}">
+          <span class="filter-pill-dot"></span>
+          ${label}
+        </button>
+      `;
+    }).join('');
+
+    return `
+      <div class="filter-bar">
+        <span class="filter-label">Show:</span>
+        ${typePills}
+      </div>
+    `;
   }
 
   /**
@@ -117,13 +172,35 @@ class NezCalendar {
     });
 
     this.container.querySelector('.today-btn').addEventListener('click', () => {
-      this.view?.today();
-      this.updatePeriodDisplay();
+      this.currentDate = new Date();
+      this.switchView('week');
     });
 
     // Add event button
     this.container.querySelector('.add-event-btn').addEventListener('click', () => {
       this.modal.openNew();
+    });
+
+    // Filter bar pill clicks
+    this.container.querySelectorAll('.filter-pill[data-type]').forEach(pill => {
+      pill.addEventListener('click', () => {
+        calendarService.toggleEventType(pill.dataset.type);
+        pill.classList.toggle('active');
+      });
+    });
+
+    // Theme toggle
+    this.container.querySelector('.theme-toggle').addEventListener('click', () => {
+      document.body.classList.toggle('light-mode');
+      localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+    });
+
+    // Year view linear/grid toggle
+    this.container.querySelector('.year-view-toggle').addEventListener('click', () => {
+      if (this.view && this.view.toggleLayout) {
+        this.view.toggleLayout();
+        this.updateYearToggleText();
+      }
     });
 
     // Listen for calendar events changes
@@ -232,7 +309,24 @@ class NezCalendar {
       tab.classList.toggle('active', tab.dataset.view === viewName);
     });
 
+    // Show/hide year view toggle
+    const yearToggle = this.container.querySelector('.year-view-toggle');
+    if (yearToggle) {
+      yearToggle.style.display = viewName === 'year' ? 'inline-flex' : 'none';
+    }
+
     this.renderCurrentView();
+    
+    if (viewName === 'year') {
+      this.updateYearToggleText();
+    }
+  }
+
+  updateYearToggleText() {
+    const btn = this.container.querySelector('.year-view-toggle');
+    if (btn && this.view && this.view.viewMode) {
+      btn.textContent = this.view.viewMode === 'grid' ? 'Linear' : 'Grid';
+    }
   }
 
   /**

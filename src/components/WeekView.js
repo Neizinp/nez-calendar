@@ -2,12 +2,22 @@
  * WeekView - Detailed weekly schedule with hourly slots
  */
 
-import { calendarService } from '../services/CalendarService.js';
+import { calendarService } from "../services/CalendarService.js";
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 export class WeekView {
@@ -17,8 +27,8 @@ export class WeekView {
     this.onEventClick = options.onEventClick || (() => {});
     this.onDateClick = options.onDateClick || (() => {});
     this.onNavigate = options.onNavigate || (() => {});
-    this.startHour = 0;
-    this.endHour = 24;
+    this.startHour = 6;  // 6am
+    this.endHour = 23;   // 11pm
   }
 
   /**
@@ -26,7 +36,10 @@ export class WeekView {
    */
   getWeekStart() {
     const d = new Date(this.currentDate);
-    d.setDate(d.getDate() - d.getDay());
+    const day = d.getDay();
+    // Monday = 0 offset, Sunday = 6 offset
+    const offset = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - offset);
     d.setHours(0, 0, 0, 0);
     return d;
   }
@@ -46,16 +59,18 @@ export class WeekView {
    */
   isToday(date) {
     const today = new Date();
-    return date.getFullYear() === today.getFullYear() &&
-           date.getMonth() === today.getMonth() &&
-           date.getDate() === today.getDate();
+    return (
+      date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth() &&
+      date.getDate() === today.getDate()
+    );
   }
 
   /**
    * Format time for display (24h format)
    */
   formatTime(timeStr) {
-    if (!timeStr) return '';
+    if (!timeStr) return "";
     return timeStr; // Already in HH:MM format
   }
 
@@ -63,30 +78,43 @@ export class WeekView {
    * Format hour for time column (24h)
    */
   formatHour(hour) {
-    return `${String(hour).padStart(2, '0')}:00`;
+    return `${String(hour).padStart(2, "0")}:00`;
   }
 
   /**
-   * Get period display string
+   * Get ISO week number
    */
+  getWeekNumber(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  }
+
   getPeriodDisplay() {
     const start = this.getWeekStart();
     const end = this.getWeekEnd();
-    
+    const weekNum = this.getWeekNumber(start);
+
+    let dateRange;
     if (start.getMonth() === end.getMonth()) {
-      return `${MONTHS[start.getMonth()]} ${start.getDate()} - ${end.getDate()}, ${start.getFullYear()}`;
+      dateRange = `${MONTHS[start.getMonth()]} ${start.getDate()} - ${end.getDate()}, ${start.getFullYear()}`;
     } else if (start.getFullYear() === end.getFullYear()) {
-      return `${MONTHS[start.getMonth()].substring(0, 3)} ${start.getDate()} - ${MONTHS[end.getMonth()].substring(0, 3)} ${end.getDate()}, ${start.getFullYear()}`;
+      dateRange = `${MONTHS[start.getMonth()].substring(0, 3)} ${start.getDate()} - ${MONTHS[end.getMonth()].substring(0, 3)} ${end.getDate()}, ${start.getFullYear()}`;
     } else {
-      return `${MONTHS[start.getMonth()].substring(0, 3)} ${start.getDate()}, ${start.getFullYear()} - ${MONTHS[end.getMonth()].substring(0, 3)} ${end.getDate()}, ${end.getFullYear()}`;
+      dateRange = `${MONTHS[start.getMonth()].substring(0, 3)} ${start.getDate()}, ${start.getFullYear()} - ${MONTHS[end.getMonth()].substring(0, 3)} ${end.getDate()}, ${end.getFullYear()}`;
     }
+    return `W${weekNum} · ${dateRange}`;
   }
 
   /**
    * Navigate to previous week
    */
   prev() {
-    this.currentDate = new Date(this.currentDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    this.currentDate = new Date(
+      this.currentDate.getTime() - 7 * 24 * 60 * 60 * 1000
+    );
     this.render();
     this.onNavigate(this.currentDate);
   }
@@ -95,7 +123,9 @@ export class WeekView {
    * Navigate to next week
    */
   next() {
-    this.currentDate = new Date(this.currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    this.currentDate = new Date(
+      this.currentDate.getTime() + 7 * 24 * 60 * 60 * 1000
+    );
     this.render();
     this.onNavigate(this.currentDate);
   }
@@ -122,7 +152,7 @@ export class WeekView {
    */
   timeToMinutes(timeStr) {
     if (!timeStr) return 0;
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    const [hours, minutes] = timeStr.split(":").map(Number);
     return hours * 60 + minutes;
   }
 
@@ -130,12 +160,12 @@ export class WeekView {
    * Calculate event position and height
    */
   getEventPosition(event) {
-    const startMinutes = this.timeToMinutes(event.startTime || '00:00');
-    const endMinutes = this.timeToMinutes(event.endTime || '23:59');
-    
+    const startMinutes = this.timeToMinutes(event.startTime || "00:00");
+    const endMinutes = this.timeToMinutes(event.endTime || "23:59");
+
     const top = (startMinutes / 60) * 48; // 48px per hour
     const height = Math.max(((endMinutes - startMinutes) / 60) * 48, 24); // min 24px
-    
+
     return { top, height };
   }
 
@@ -145,7 +175,7 @@ export class WeekView {
   render() {
     const weekStart = this.getWeekStart();
     const weekEnd = this.getWeekEnd();
-    
+
     const events = calendarService.getEventsForRange(
       calendarService.formatDate(weekStart),
       calendarService.formatDate(weekEnd)
@@ -166,11 +196,14 @@ export class WeekView {
     for (const event of events) {
       const start = new Date(event.startDate);
       const end = new Date(event.endDate || event.startDate);
-      
+
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         const dateStr = calendarService.formatDate(d);
         if (allDayByDate.has(dateStr)) {
-          if (event.allDay || (event.endDate && event.endDate !== event.startDate)) {
+          if (
+            event.allDay ||
+            (event.endDate && event.endDate !== event.startDate)
+          ) {
             allDayByDate.get(dateStr).push(event);
           } else {
             timedByDate.get(dateStr).push(event);
@@ -191,9 +224,9 @@ export class WeekView {
     `;
 
     this.attachEventListeners();
-    
+
     // Scroll to ~8am
-    const grid = this.container.querySelector('.week-grid');
+    const grid = this.container.querySelector(".week-grid");
     if (grid) {
       grid.scrollTop = 8 * 48;
     }
@@ -208,9 +241,9 @@ export class WeekView {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
       const isToday = this.isToday(d);
-      
+
       days.push(`
-        <div class="week-header-cell ${isToday ? 'today' : ''}">
+        <div class="week-header-cell ${isToday ? "today" : ""}">
           <div class="week-day-name">${DAYS[i]}</div>
           <div class="week-day-number">${d.getDate()}</div>
         </div>
@@ -220,7 +253,7 @@ export class WeekView {
     return `
       <div class="week-header">
         <div class="week-header-cell" style="border: none;"></div>
-        ${days.join('')}
+        ${days.join("")}
       </div>
     `;
   }
@@ -230,16 +263,20 @@ export class WeekView {
    */
   renderAllDayRow(allDayByDate) {
     const cells = [];
-    
+
     for (const [dateStr, events] of allDayByDate) {
       cells.push(`
         <div class="week-all-day-cell" data-date="${dateStr}">
-          ${events.map(event => `
+          ${events
+            .map(
+              (event) => `
             <div class="event-pill all-day" data-id="${event.id}"
                  style="background-color: ${event.color}">
               ${this.escapeHtml(event.title)}
             </div>
-          `).join('')}
+          `
+            )
+            .join("")}
         </div>
       `);
     }
@@ -247,7 +284,7 @@ export class WeekView {
     return `
       <div class="week-all-day">
         <div class="week-all-day-label">all-day</div>
-        ${cells.join('')}
+        ${cells.join("")}
       </div>
     `;
   }
@@ -264,7 +301,7 @@ export class WeekView {
         </div>
       `);
     }
-    return `<div class="week-time-column">${slots.join('')}</div>`;
+    return `<div class="week-time-column">${slots.join("")}</div>`;
   }
 
   /**
@@ -272,7 +309,7 @@ export class WeekView {
    */
   renderDayColumns(weekStart, timedByDate) {
     const columns = [];
-    
+
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
@@ -282,37 +319,45 @@ export class WeekView {
       // Render hour slots
       const slots = [];
       for (let h = this.startHour; h < this.endHour; h++) {
-        slots.push(`<div class="week-hour-slot" data-date="${dateStr}" data-hour="${h}"></div>`);
+        slots.push(
+          `<div class="week-hour-slot" data-date="${dateStr}" data-hour="${h}"></div>`
+        );
       }
 
       // Render positioned events
-      const eventElements = events.map(event => {
-        const { top, height } = this.getEventPosition(event);
-        return `
+      const eventElements = events
+        .map((event) => {
+          const { top, height } = this.getEventPosition(event);
+          return `
           <div class="week-event" data-id="${event.id}"
-               style="top: ${top}px; height: ${height}px; background-color: ${event.color}">
-            <div class="week-event-time">${this.formatTime(event.startTime)}</div>
+               style="top: ${top}px; height: ${height}px; background-color: ${
+            event.color
+          }">
+            <div class="week-event-time">${this.formatTime(
+              event.startTime
+            )}</div>
             <div class="week-event-title">${this.escapeHtml(event.title)}</div>
           </div>
         `;
-      }).join('');
+        })
+        .join("");
 
       columns.push(`
         <div class="week-day-column">
-          ${slots.join('')}
+          ${slots.join("")}
           ${eventElements}
         </div>
       `);
     }
 
-    return columns.join('');
+    return columns.join("");
   }
 
   /**
    * Escape HTML entities
    */
   escapeHtml(text) {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }
@@ -322,18 +367,18 @@ export class WeekView {
    */
   attachEventListeners() {
     // Hour slot click -> create event at that time
-    this.container.querySelectorAll('.week-hour-slot').forEach(slot => {
-      slot.addEventListener('click', () => {
+    this.container.querySelectorAll(".week-hour-slot").forEach((slot) => {
+      slot.addEventListener("click", () => {
         const date = slot.dataset.date;
         const hour = slot.dataset.hour;
-        this.onDateClick(date, `${hour.padStart(2, '0')}:00`);
+        this.onDateClick(date, `${hour.padStart(2, "0")}:00`);
       });
     });
 
     // All-day cell click -> create all-day event
-    this.container.querySelectorAll('.week-all-day-cell').forEach(cell => {
-      cell.addEventListener('click', (e) => {
-        if (!e.target.closest('.event-pill')) {
+    this.container.querySelectorAll(".week-all-day-cell").forEach((cell) => {
+      cell.addEventListener("click", (e) => {
+        if (!e.target.closest(".event-pill")) {
           const date = cell.dataset.date;
           this.onDateClick(date, null, true);
         }
@@ -341,12 +386,14 @@ export class WeekView {
     });
 
     // Event click -> edit event
-    this.container.querySelectorAll('.event-pill, .week-event').forEach(el => {
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const id = el.dataset.id;
-        this.onEventClick(id);
+    this.container
+      .querySelectorAll(".event-pill, .week-event")
+      .forEach((el) => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const id = el.dataset.id;
+          this.onEventClick(id);
+        });
       });
-    });
   }
 }

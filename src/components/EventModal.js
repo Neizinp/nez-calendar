@@ -1,8 +1,9 @@
 /**
  * EventModal - Create and edit calendar events
+ * Supports event types and recurrence
  */
 
-import { calendarService } from '../services/CalendarService.js';
+import { calendarService, EVENT_TYPES, RECURRENCE_PATTERNS } from '../services/CalendarService.js';
 
 const EVENT_COLORS = [
   '#8b5cf6', // purple
@@ -54,6 +55,15 @@ export class EventModal {
    * Get modal HTML structure
    */
   getModalHTML() {
+    const typeOptions = Object.entries(EVENT_TYPES)
+      .filter(([key]) => key !== 'holiday') // Can't manually create holidays
+      .map(([key, val]) => `<option value="${key}">${val.label}</option>`)
+      .join('');
+
+    const recurrenceOptions = Object.entries(RECURRENCE_PATTERNS)
+      .map(([key, val]) => `<option value="${key}">${val}</option>`)
+      .join('');
+
     return `
       <div class="modal">
         <div class="modal-header">
@@ -70,17 +80,25 @@ export class EventModal {
             <input type="text" id="event-title" class="form-input" placeholder="Event title" autofocus>
           </div>
 
-          <div class="form-group">
-            <div class="checkbox-group">
-              <input type="checkbox" id="event-allday" class="checkbox" checked>
-              <label class="checkbox-label" for="event-allday">All day</label>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="event-type">Type</label>
+              <select id="event-type" class="form-input">
+                ${typeOptions}
+              </select>
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group" style="margin-top: 28px;">
+                <input type="checkbox" id="event-allday" class="checkbox" checked>
+                <label class="checkbox-label" for="event-allday">All day</label>
+              </div>
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="event-start-date">Start Date</label>
-              <input type="text" id="event-start-date" class="form-input mono" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}">
+              <input type="text" id="event-start-date" class="form-input mono" placeholder="YYYY-MM-DD" pattern="\\d{4}-\\d{2}-\\d{2}">
             </div>
             <div class="form-group time-field">
               <label class="form-label" for="event-start-time">Start Time</label>
@@ -91,11 +109,24 @@ export class EventModal {
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="event-end-date">End Date</label>
-              <input type="text" id="event-end-date" class="form-input mono" placeholder="YYYY-MM-DD" pattern="\d{4}-\d{2}-\d{2}">
+              <input type="text" id="event-end-date" class="form-input mono" placeholder="YYYY-MM-DD" pattern="\\d{4}-\\d{2}-\\d{2}">
             </div>
             <div class="form-group time-field">
               <label class="form-label" for="event-end-time">End Time</label>
               <input type="time" id="event-end-time" class="form-input">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="event-recurrence">Repeat</label>
+              <select id="event-recurrence" class="form-input">
+                ${recurrenceOptions}
+              </select>
+            </div>
+            <div class="form-group recurrence-end-field">
+              <label class="form-label" for="event-recurrence-end">Until</label>
+              <input type="text" id="event-recurrence-end" class="form-input mono" placeholder="YYYY-MM-DD">
             </div>
           </div>
 
@@ -136,6 +167,9 @@ export class EventModal {
       endTime: time ? this.addHour(time) : '10:00',
       allDay: allDay,
       color: EVENT_COLORS[0],
+      type: 'personal',
+      recurrence: 'none',
+      recurrenceEnd: null,
       description: ''
     };
 
@@ -147,8 +181,17 @@ export class EventModal {
    * Open modal for editing existing event
    */
   openEdit(eventId) {
-    const event = calendarService.getAllEvents().find(e => e.id === eventId);
+    const events = calendarService.getAllEvents();
+    // Handle recurrence instance IDs
+    const originalId = eventId.includes('_') ? eventId.split('_')[0] : eventId;
+    const event = events.find(e => e.id === originalId || e.id === eventId);
+    
     if (!event) return;
+
+    // Don't allow editing holidays
+    if (event._isHoliday) {
+      return;
+    }
 
     this.isNew = false;
     this.event = { ...event };
@@ -176,15 +219,21 @@ export class EventModal {
     
     // Populate fields
     modal.querySelector('#event-title').value = this.event.title;
+    modal.querySelector('#event-type').value = this.event.type || 'personal';
     modal.querySelector('#event-allday').checked = this.event.allDay;
     modal.querySelector('#event-start-date').value = this.event.startDate;
     modal.querySelector('#event-end-date').value = this.event.endDate || this.event.startDate;
     modal.querySelector('#event-start-time').value = this.event.startTime || '09:00';
     modal.querySelector('#event-end-time').value = this.event.endTime || '10:00';
+    modal.querySelector('#event-recurrence').value = this.event.recurrence || 'none';
+    modal.querySelector('#event-recurrence-end').value = this.event.recurrenceEnd || '';
     modal.querySelector('#event-description').value = this.event.description || '';
 
     // Show/hide time fields
     this.toggleTimeFields(this.event.allDay);
+
+    // Show/hide recurrence end field
+    this.toggleRecurrenceEndField(this.event.recurrence);
 
     // Select color
     modal.querySelectorAll('.color-option').forEach(opt => {
@@ -203,6 +252,16 @@ export class EventModal {
     timeFields.forEach(field => {
       field.style.display = allDay ? 'none' : 'block';
     });
+  }
+
+  /**
+   * Toggle recurrence end field visibility
+   */
+  toggleRecurrenceEndField(recurrence) {
+    const endField = this.overlay.querySelector('.recurrence-end-field');
+    if (endField) {
+      endField.style.display = recurrence && recurrence !== 'none' ? 'block' : 'none';
+    }
   }
 
   /**
@@ -241,6 +300,22 @@ export class EventModal {
       this.toggleTimeFields(e.target.checked);
     };
 
+    // Recurrence change
+    modal.querySelector('#event-recurrence').onchange = (e) => {
+      this.toggleRecurrenceEndField(e.target.value);
+    };
+
+    // Type change - update color to match type default
+    modal.querySelector('#event-type').onchange = (e) => {
+      const type = e.target.value;
+      const typeColor = EVENT_TYPES[type]?.color;
+      if (typeColor) {
+        modal.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+        const colorOpt = modal.querySelector(`.color-option[data-color="${typeColor}"]`);
+        if (colorOpt) colorOpt.classList.add('selected');
+      }
+    };
+
     // Color picker
     modal.querySelectorAll('.color-option').forEach(opt => {
       opt.onclick = () => {
@@ -270,15 +345,19 @@ export class EventModal {
     const modal = this.overlay.querySelector('.modal');
     const allDay = modal.querySelector('#event-allday').checked;
     const selectedColor = modal.querySelector('.color-option.selected');
+    const recurrence = modal.querySelector('#event-recurrence').value;
 
     return {
       title: modal.querySelector('#event-title').value.trim() || 'Untitled',
+      type: modal.querySelector('#event-type').value,
       startDate: modal.querySelector('#event-start-date').value,
       endDate: modal.querySelector('#event-end-date').value,
       startTime: allDay ? null : modal.querySelector('#event-start-time').value,
       endTime: allDay ? null : modal.querySelector('#event-end-time').value,
       allDay: allDay,
       color: selectedColor ? selectedColor.dataset.color : EVENT_COLORS[0],
+      recurrence: recurrence,
+      recurrenceEnd: recurrence !== 'none' ? modal.querySelector('#event-recurrence-end').value || null : null,
       description: modal.querySelector('#event-description').value
     };
   }

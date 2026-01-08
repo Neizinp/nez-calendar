@@ -4,7 +4,7 @@
 
 import { calendarService } from '../services/CalendarService.js';
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -25,8 +25,10 @@ export class MonthView {
   getGridStart() {
     const firstOfMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
     const dayOfWeek = firstOfMonth.getDay();
+    // Monday = 0 offset, Sunday = 6 offset
+    const offset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const start = new Date(firstOfMonth);
-    start.setDate(start.getDate() - dayOfWeek);
+    start.setDate(start.getDate() - offset);
     return start;
   }
 

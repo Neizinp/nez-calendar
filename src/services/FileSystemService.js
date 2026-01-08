@@ -1,7 +1,11 @@
 /**
  * FileSystemService - Browser File System Access API wrapper
- * Allows the user to select a folder for storing markdown event files
+ * Persists directory handle in IndexedDB for automatic reconnection
  */
+
+const DB_NAME = 'nez-calendar-db';
+const STORE_NAME = 'handles';
+const HANDLE_KEY = 'directoryHandle';
 
 class FileSystemService {
   constructor() {
@@ -14,6 +18,91 @@ class FileSystemService {
    */
   isSupported() {
     return "showDirectoryPicker" in window;
+  }
+
+  /**
+   * Open IndexedDB database
+   */
+  async openDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+    });
+  }
+
+  /**
+   * Save directory handle to IndexedDB
+   */
+  async saveHandle(handle) {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(handle, HANDLE_KEY);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      tx.oncomplete = () => db.close();
+    });
+  }
+
+  /**
+   * Load directory handle from IndexedDB
+   */
+  async loadHandle() {
+    try {
+      const db = await this.openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.get(HANDLE_KEY);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        tx.oncomplete = () => db.close();
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Try to restore previous directory access
+   */
+  async tryRestoreAccess() {
+    if (!this.isSupported()) return false;
+
+    try {
+      const handle = await this.loadHandle();
+      if (!handle) return false;
+
+      // Verify we still have permission
+      const permission = await handle.queryPermission({ mode: 'readwrite' });
+      if (permission === 'granted') {
+        this.directoryHandle = handle;
+        this.eventsHandle = handle;
+        this.directoryName = handle.name;
+        return true;
+      }
+
+      // Try to request permission again
+      const newPermission = await handle.requestPermission({ mode: 'readwrite' });
+      if (newPermission === 'granted') {
+        this.directoryHandle = handle;
+        this.eventsHandle = handle;
+        this.directoryName = handle.name;
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -30,16 +119,15 @@ class FileSystemService {
         startIn: 'documents'
       });
 
-      // Use selected folder directly for events
       this.eventsHandle = this.directoryHandle;
-
-      // Store the directory name for display
       this.directoryName = this.directoryHandle.name;
+
+      // Save to IndexedDB for persistence
+      await this.saveHandle(this.directoryHandle);
 
       return true;
     } catch (err) {
       if (err.name === 'AbortError') {
-        // User cancelled the picker
         return false;
       }
       throw err;

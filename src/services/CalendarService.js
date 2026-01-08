@@ -1,29 +1,91 @@
 /**
  * CalendarService - Event data management
  * Handles parsing, serialization, and CRUD operations for calendar events
+ * Supports event types, recurrence, and Swedish holidays
  */
 
 import { fileSystemService } from './FileSystemService.js';
+import { getSwedishHolidays } from './SwedishHolidays.js';
 
 /**
- * Event structure:
- * {
- *   id: string (UUID)
- *   title: string
- *   startDate: string (YYYY-MM-DD)
- *   endDate: string (YYYY-MM-DD) - optional, for multi-day events
- *   startTime: string (HH:MM) - optional, for timed events
- *   endTime: string (HH:MM) - optional, for timed events
- *   allDay: boolean
- *   color: string (hex color)
- *   description: string (markdown body)
- * }
+ * Event types for categorization
  */
+export const EVENT_TYPES = {
+  personal: { label: 'Personal', color: '#8b5cf6' },
+  work: { label: 'Work', color: '#3b82f6' },
+  birthday: { label: 'Birthday', color: '#ec4899' },
+  holiday: { label: 'Holiday', color: '#22c55e' },
+  other: { label: 'Other', color: '#6b7280' }
+};
+
+/**
+ * Recurrence patterns
+ */
+export const RECURRENCE_PATTERNS = {
+  none: 'None',
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  yearly: 'Yearly'
+};
 
 class CalendarService {
   constructor() {
     this.events = new Map();
     this.listeners = new Set();
+    this.showHolidays = localStorage.getItem('showSwedishHolidays') !== 'false';
+    this.enabledTypes = this.loadEnabledTypes();
+  }
+
+  /**
+   * Load enabled event types from localStorage
+   */
+  loadEnabledTypes() {
+    const stored = localStorage.getItem('enabledEventTypes');
+    if (stored) {
+      try {
+        return new Set(JSON.parse(stored));
+      } catch (e) {
+        return new Set(Object.keys(EVENT_TYPES));
+      }
+    }
+    return new Set(Object.keys(EVENT_TYPES));
+  }
+
+  /**
+   * Save enabled types to localStorage
+   */
+  saveEnabledTypes() {
+    localStorage.setItem('enabledEventTypes', JSON.stringify([...this.enabledTypes]));
+  }
+
+  /**
+   * Toggle an event type on/off
+   */
+  toggleEventType(type) {
+    if (this.enabledTypes.has(type)) {
+      this.enabledTypes.delete(type);
+    } else {
+      this.enabledTypes.add(type);
+    }
+    this.saveEnabledTypes();
+    this.notifyListeners();
+  }
+
+  /**
+   * Check if an event type is enabled
+   */
+  isTypeEnabled(type) {
+    return this.enabledTypes.has(type);
+  }
+
+  /**
+   * Toggle Swedish holidays
+   */
+  toggleHolidays() {
+    this.showHolidays = !this.showHolidays;
+    localStorage.setItem('showSwedishHolidays', this.showHolidays);
+    this.notifyListeners();
   }
 
   /**
@@ -75,9 +137,10 @@ class CalendarService {
           value = value.slice(1, -1);
         }
 
-        // Parse booleans
+        // Parse booleans and numbers
         if (value === 'true') value = true;
         else if (value === 'false') value = false;
+        else if (/^\d+$/.test(value)) value = parseInt(value);
 
         frontmatter[key] = value;
       }
@@ -113,6 +176,19 @@ class CalendarService {
     }
 
     lines.push(`color: "${event.color}"`);
+    lines.push(`type: "${event.type || 'personal'}"`);
+
+    // Recurrence fields
+    if (event.recurrence && event.recurrence !== 'none') {
+      lines.push(`recurrence: "${event.recurrence}"`);
+      if (event.recurrenceEnd) {
+        lines.push(`recurrenceEnd: "${event.recurrenceEnd}"`);
+      }
+      if (event.recurrenceInterval && event.recurrenceInterval > 1) {
+        lines.push(`recurrenceInterval: ${event.recurrenceInterval}`);
+      }
+    }
+
     lines.push('---');
     lines.push('');
 
@@ -150,6 +226,10 @@ class CalendarService {
             endTime: frontmatter.endTime || null,
             allDay: frontmatter.allDay !== false && !frontmatter.startTime,
             color: frontmatter.color || '#8b5cf6',
+            type: frontmatter.type || 'personal',
+            recurrence: frontmatter.recurrence || 'none',
+            recurrenceEnd: frontmatter.recurrenceEnd || null,
+            recurrenceInterval: frontmatter.recurrenceInterval || 1,
             description: body,
             _filename: filename
           };
@@ -168,27 +248,135 @@ class CalendarService {
   }
 
   /**
-   * Get all events
+   * Get all events (including generated recurrence instances and holidays)
    */
   getAllEvents() {
-    return Array.from(this.events.values());
+    let events = Array.from(this.events.values());
+    
+    // Filter by enabled types
+    events = events.filter(e => this.enabledTypes.has(e.type || 'personal'));
+    
+    return events;
   }
 
   /**
-   * Get events for a specific date range
+   * Expand recurring events into instances for a date range
+   */
+  expandRecurringEvents(events, startDate, endDate) {
+    const expanded = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    for (const event of events) {
+      if (!event.recurrence || event.recurrence === 'none') {
+        expanded.push(event);
+        continue;
+      }
+
+      // Generate recurring instances
+      const eventStart = new Date(event.startDate);
+      const eventEnd = event.endDate ? new Date(event.endDate) : new Date(event.startDate);
+      const duration = eventEnd - eventStart;
+      const recurrenceEnd = event.recurrenceEnd ? new Date(event.recurrenceEnd) : end;
+      const interval = event.recurrenceInterval || 1;
+
+      let current = new Date(eventStart);
+      let instanceCount = 0;
+      const maxInstances = 365; // Safety limit
+
+      while (current <= end && current <= recurrenceEnd && instanceCount < maxInstances) {
+        if (current >= start || new Date(current.getTime() + duration) >= start) {
+          const instanceEnd = new Date(current.getTime() + duration);
+          expanded.push({
+            ...event,
+            id: `${event.id}_${this.formatDate(current)}`,
+            startDate: this.formatDate(current),
+            endDate: this.formatDate(instanceEnd),
+            _isRecurrenceInstance: true,
+            _originalId: event.id
+          });
+        }
+
+        // Advance to next occurrence
+        switch (event.recurrence) {
+          case 'daily':
+            current.setDate(current.getDate() + interval);
+            break;
+          case 'weekly':
+            current.setDate(current.getDate() + (7 * interval));
+            break;
+          case 'monthly':
+            current.setMonth(current.getMonth() + interval);
+            break;
+          case 'yearly':
+            current.setFullYear(current.getFullYear() + interval);
+            break;
+          default:
+            instanceCount = maxInstances; // Exit loop
+        }
+        instanceCount++;
+      }
+    }
+
+    return expanded;
+  }
+
+  /**
+   * Get Swedish holidays as events
+   */
+  getHolidayEvents(startDate, endDate) {
+    if (!this.showHolidays || !this.enabledTypes.has('holiday')) {
+      return [];
+    }
+
+    const startYear = parseInt(startDate.substring(0, 4));
+    const endYear = parseInt(endDate.substring(0, 4));
+    const holidays = [];
+
+    for (let year = startYear; year <= endYear; year++) {
+      const yearHolidays = getSwedishHolidays(year);
+      for (const h of yearHolidays) {
+        if (h.date >= startDate && h.date <= endDate) {
+          holidays.push({
+            id: `holiday_${h.date}`,
+            title: h.nameSv,
+            startDate: h.date,
+            endDate: h.date,
+            allDay: true,
+            color: EVENT_TYPES.holiday.color,
+            type: 'holiday',
+            _isHoliday: true,
+            _englishName: h.name
+          });
+        }
+      }
+    }
+
+    return holidays;
+  }
+
+  /**
+   * Get events for a specific date range (with recurrence expansion and holidays)
    */
   getEventsForRange(startDate, endDate) {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    return this.getAllEvents().filter(event => {
+    // Get base events that overlap with range
+    let events = this.getAllEvents().filter(event => {
       const eventStart = new Date(event.startDate);
       const eventEnd = new Date(event.endDate || event.startDate);
-
-      // Event overlaps with range if:
-      // event starts before range ends AND event ends after range starts
       return eventStart <= end && eventEnd >= start;
     });
+
+    // Expand recurring events
+    events = this.expandRecurringEvents(events, startDate, endDate);
+
+    // Add holidays
+    const holidays = this.getHolidayEvents(startDate, endDate);
+    events = [...events, ...holidays];
+
+    return events;
   }
 
   /**
@@ -196,13 +384,7 @@ class CalendarService {
    */
   getEventsForDate(date) {
     const dateStr = typeof date === 'string' ? date : this.formatDate(date);
-
-    return this.getAllEvents().filter(event => {
-      const eventStart = event.startDate;
-      const eventEnd = event.endDate || event.startDate;
-
-      return dateStr >= eventStart && dateStr <= eventEnd;
-    });
+    return this.getEventsForRange(dateStr, dateStr);
   }
 
   /**
@@ -217,7 +399,11 @@ class CalendarService {
       startTime: eventData.allDay ? null : (eventData.startTime || null),
       endTime: eventData.allDay ? null : (eventData.endTime || null),
       allDay: eventData.allDay !== false,
-      color: eventData.color || '#8b5cf6',
+      color: eventData.color || EVENT_TYPES[eventData.type || 'personal'].color,
+      type: eventData.type || 'personal',
+      recurrence: eventData.recurrence || 'none',
+      recurrenceEnd: eventData.recurrenceEnd || null,
+      recurrenceInterval: eventData.recurrenceInterval || 1,
       description: eventData.description || ''
     };
 
@@ -237,18 +423,20 @@ class CalendarService {
    * Update an existing event
    */
   async updateEvent(id, eventData) {
-    const existing = this.events.get(id);
+    // Handle recurring instance updates
+    const originalId = id.includes('_') ? id.split('_')[0] : id;
+    const existing = this.events.get(originalId);
+    
     if (!existing) {
       throw new Error(`Event ${id} not found`);
     }
 
-    // Delete old file if filename will change
     const oldFilename = existing._filename;
 
     const event = {
       ...existing,
       ...eventData,
-      id // Preserve ID
+      id: originalId // Preserve original ID
     };
 
     // Ensure consistency
@@ -260,10 +448,8 @@ class CalendarService {
     const newFilename = this.generateFilename(event);
     const content = this.serializeEvent(event);
 
-    // Write new file
     await fileSystemService.writeFile(newFilename, content);
 
-    // Delete old file if different
     if (oldFilename && oldFilename !== newFilename) {
       await fileSystemService.deleteFile(oldFilename);
     }
@@ -279,7 +465,10 @@ class CalendarService {
    * Delete an event
    */
   async deleteEvent(id) {
-    const event = this.events.get(id);
+    // Handle recurring instance deletions
+    const originalId = id.includes('_') ? id.split('_')[0] : id;
+    const event = this.events.get(originalId);
+    
     if (!event) {
       return false;
     }
@@ -288,7 +477,7 @@ class CalendarService {
       await fileSystemService.deleteFile(event._filename);
     }
 
-    this.events.delete(id);
+    this.events.delete(originalId);
     this.notifyListeners();
     return true;
   }
