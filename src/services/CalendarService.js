@@ -7,6 +7,7 @@
 import { fileSystemService } from './FileSystemService.js';
 import { getSwedishHolidays } from './SwedishHolidays.js';
 import { formatDate } from '../utils/dateUtils.js';
+import { logger } from '../utils/logger.js';
 
 // Re-export constants for backward compatibility
 export { EVENT_TYPES, RECURRENCE_PATTERNS } from '../constants.js';
@@ -222,7 +223,7 @@ class CalendarService {
           }
         }
       } catch (err) {
-        console.error(`Error loading event file ${filename}:`, err);
+        logger.error(`Error loading event file ${filename}`, { error: err.message });
       }
     }
 
@@ -371,9 +372,54 @@ class CalendarService {
   }
 
   /**
+   * Validate event data
+   * @param {Object} eventData - Event to validate
+   * @returns {string[]} Array of error messages (empty if valid)
+   */
+  validateEvent(eventData) {
+    const errors = [];
+    
+    if (!eventData.title?.trim()) {
+      errors.push('Title is required');
+    }
+    
+    if (!eventData.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(eventData.startDate)) {
+      errors.push('Invalid start date format (expected YYYY-MM-DD)');
+    }
+    
+    if (eventData.endDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventData.endDate)) {
+      errors.push('Invalid end date format (expected YYYY-MM-DD)');
+    }
+    
+    if (eventData.endDate && eventData.startDate && eventData.endDate < eventData.startDate) {
+      errors.push('End date must be on or after start date');
+    }
+    
+    if (!eventData.allDay) {
+      if (eventData.startTime && !/^\d{2}:\d{2}$/.test(eventData.startTime)) {
+        errors.push('Invalid start time format (expected HH:MM)');
+      }
+      if (eventData.endTime && !/^\d{2}:\d{2}$/.test(eventData.endTime)) {
+        errors.push('Invalid end time format (expected HH:MM)');
+      }
+    }
+    
+    return errors;
+  }
+
+  /**
    * Create a new event
+   * @param {Object} eventData - Event properties
+   * @returns {Promise<Object>} Created event
+   * @throws {Error} If validation fails or file system unavailable
    */
   async createEvent(eventData) {
+    // Validate input
+    const errors = this.validateEvent(eventData);
+    if (errors.length > 0) {
+      throw new Error(`Invalid event: ${errors.join(', ')}`);
+    }
+
     const event = {
       id: this.generateId(),
       title: eventData.title || 'Untitled',
@@ -488,7 +534,7 @@ class CalendarService {
       try {
         listener(this.getAllEvents());
       } catch (err) {
-        console.error('Error in event listener:', err);
+        logger.error('Error in event listener', { error: err.message });
       }
     }
   }

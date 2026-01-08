@@ -68,12 +68,20 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+// Memoization cache for holiday calculations
+const holidayCache = new Map();
+
 /**
- * Get all Swedish public holidays for a given year
+ * Get all Swedish public holidays for a given year (memoized)
  * @param {number} year
  * @returns {Array<{date: string, name: string, nameSv: string}>}
  */
 export function getSwedishHolidays(year) {
+  // Return cached result if available
+  if (holidayCache.has(year)) {
+    return holidayCache.get(year);
+  }
+
   const holidays = [];
   
   // Fixed holidays
@@ -174,6 +182,9 @@ export function getSwedishHolidays(year) {
   
   // Sort by date
   holidays.sort((a, b) => a.date.localeCompare(b.date));
+  
+  // Cache the result
+  holidayCache.set(year, holidays);
   
   return holidays;
 }

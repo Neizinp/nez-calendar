@@ -12,6 +12,7 @@ export class WeekView extends BaseView {
     super(container, options);
     this.startHour = 6;  // 6am
     this.endHour = 23;   // 11pm
+    this.handleKeyboard = null; // Will be set once
   }
 
   /**
@@ -346,5 +347,34 @@ export class WeekView extends BaseView {
           this.onEventClick(id);
         });
       });
+
+    // Keyboard navigation (only add once)
+    if (!this.handleKeyboard) {
+      this.handleKeyboard = (e) => {
+        // Don't intercept when modal is open or input is focused
+        if (document.querySelector('.modal-overlay.open') || 
+            e.target.tagName === 'INPUT' || 
+            e.target.tagName === 'TEXTAREA') {
+          return;
+        }
+        
+        switch (e.key) {
+          case 'ArrowLeft':
+            e.preventDefault();
+            this.prev();
+            break;
+          case 'ArrowRight':
+            e.preventDefault();
+            this.next();
+            break;
+          case 't':
+          case 'T':
+            e.preventDefault();
+            this.today();
+            break;
+        }
+      };
+      document.addEventListener('keydown', this.handleKeyboard);
+    }
   }
 }

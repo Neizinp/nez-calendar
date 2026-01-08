@@ -309,4 +309,61 @@ recurrenceInterval: 2
       expect(expanded[0].id).toBe('single-1');
     });
   });
+
+  describe('validateEvent', () => {
+    it('should return empty array for valid event', () => {
+      const errors = calendarService.validateEvent({
+        title: 'Valid Event',
+        startDate: '2026-01-15',
+        allDay: true
+      });
+      expect(errors).toEqual([]);
+    });
+
+    it('should require title', () => {
+      const errors = calendarService.validateEvent({
+        title: '',
+        startDate: '2026-01-15'
+      });
+      expect(errors).toContain('Title is required');
+    });
+
+    it('should require valid start date format', () => {
+      const errors = calendarService.validateEvent({
+        title: 'Test',
+        startDate: '01-15-2026' // wrong format
+      });
+      expect(errors).toContain('Invalid start date format (expected YYYY-MM-DD)');
+    });
+
+    it('should validate end date format', () => {
+      const errors = calendarService.validateEvent({
+        title: 'Test',
+        startDate: '2026-01-15',
+        endDate: 'invalid'
+      });
+      expect(errors).toContain('Invalid end date format (expected YYYY-MM-DD)');
+    });
+
+    it('should require end date after start date', () => {
+      const errors = calendarService.validateEvent({
+        title: 'Test',
+        startDate: '2026-01-15',
+        endDate: '2026-01-10'
+      });
+      expect(errors).toContain('End date must be on or after start date');
+    });
+
+    it('should validate time formats for non all-day events', () => {
+      const errors = calendarService.validateEvent({
+        title: 'Test',
+        startDate: '2026-01-15',
+        allDay: false,
+        startTime: '9:00', // missing leading zero
+        endTime: 'invalid'
+      });
+      expect(errors).toContain('Invalid start time format (expected HH:MM)');
+      expect(errors).toContain('Invalid end time format (expected HH:MM)');
+    });
+  });
 });
